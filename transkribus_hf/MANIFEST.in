@@ -1,0 +1,7 @@
+include README.md
+include LICENSE
+include requirements.txt
+include MANIFEST.in
+recursive-include transkribus_hf *.py
+recursive-include examples *.py
+recursive-include tests *.py 
