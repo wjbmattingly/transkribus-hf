@@ -22,9 +22,23 @@ def main():
     
     parser.add_argument(
         "--mode",
-        choices=['raw_xml', 'text', 'region', 'line'],
+        choices=['raw_xml', 'text', 'region', 'line', 'window'],
         default='text',
         help="Export mode (default: text)"
+    )
+    
+    parser.add_argument(
+        "--window-size",
+        type=int,
+        default=2,
+        help="Number of lines per window (only for window mode, default: 2)"
+    )
+    
+    parser.add_argument(
+        "--overlap",
+        type=int,
+        default=0,
+        help="Number of lines to overlap between windows (only for window mode, default: 0)"
     )
     
     parser.add_argument(
@@ -71,6 +85,18 @@ def main():
         print("Error: --repo-id is required unless using --stats-only or --local-only")
         sys.exit(1)
     
+    # Validate window parameters
+    if args.mode == 'window':
+        if args.window_size < 1:
+            print("Error: --window-size must be at least 1")
+            sys.exit(1)
+        if args.overlap < 0:
+            print("Error: --overlap cannot be negative")
+            sys.exit(1)
+        if args.overlap >= args.window_size:
+            print("Error: --overlap must be less than --window-size")
+            sys.exit(1)
+    
     # Initialize converter
     converter = TranskribusConverter(args.zip_path)
     
@@ -84,15 +110,32 @@ def main():
         print(f"  Projects: {', '.join(stats['projects'])}")
         print(f"  Avg regions per page: {stats['avg_regions_per_page']:.1f}")
         print(f"  Avg lines per page: {stats['avg_lines_per_page']:.1f}")
+        
+        # For window mode, show expected window count
+        if args.mode == 'window':
+            step = args.window_size - args.overlap
+            estimated_windows = 0
+            for stat in ['total_regions']:  # This is a rough estimate
+                regions_with_lines = stats['total_lines'] // 5  # rough estimate
+                estimated_windows += max(0, regions_with_lines - args.window_size + 1) // step
+            print(f"  Estimated windows (window_size={args.window_size}, overlap={args.overlap}): ~{estimated_windows}")
+        
         return
     
     try:
         # Convert the dataset
-        dataset = converter.convert(args.mode)
+        dataset = converter.convert(
+            export_mode=args.mode,
+            window_size=args.window_size,
+            overlap=args.overlap
+        )
         
         if args.local_only:
             # Save locally
-            output_dir = args.output_dir or f"./transkribus_dataset_{args.mode}"
+            mode_suffix = f"_{args.mode}"
+            if args.mode == 'window':
+                mode_suffix += f"_w{args.window_size}_o{args.overlap}"
+            output_dir = args.output_dir or f"./transkribus_dataset{mode_suffix}"
             dataset.save_to_disk(output_dir)
             print(f"Dataset saved to: {output_dir}")
         else:

@@ -9,6 +9,7 @@ from .exporters import (
     TextExporter,
     RegionExporter,
     LineExporter,
+    WindowExporter,
 )
 
 __version__ = "0.1.0"
@@ -21,4 +22,5 @@ __all__ = [
     "TextExporter", 
     "RegionExporter",
     "LineExporter",
+    "WindowExporter",
 ] 

@@ -108,6 +108,27 @@ class BaseExporter(ABC):
             print(f"Warning: Error cropping region: {e}")
             return None
     
+    def _calculate_bounding_box(self, coords_list: List[List[Tuple[int, int]]]) -> List[Tuple[int, int]]:
+        """Calculate the bounding box that encompasses multiple coordinate sets."""
+        if not coords_list:
+            return []
+        
+        all_coords = []
+        for coords in coords_list:
+            all_coords.extend(coords)
+        
+        if not all_coords:
+            return []
+        
+        x_coords = [coord[0] for coord in all_coords]
+        y_coords = [coord[1] for coord in all_coords]
+        
+        min_x, max_x = min(x_coords), max(x_coords)
+        min_y, max_y = min(y_coords), max(y_coords)
+        
+        # Return as rectangle coordinates
+        return [(min_x, min_y), (max_x, min_y), (max_x, max_y), (min_x, max_y)]
+    
     def _print_summary(self):
         """Print processing summary."""
         print(f"\nProcessing Summary:")
@@ -276,4 +297,106 @@ class LineExporter(BaseExporter):
             'project': Value('string')
         })
         
-        return Dataset.from_list(data, features=features) 
+        return Dataset.from_list(data, features=features)
+
+
+class WindowExporter(BaseExporter):
+    """Export sliding windows of text lines with configurable window size and overlap."""
+    
+    def __init__(self, zip_path: str, window_size: int = 2, overlap: int = 0):
+        """
+        Initialize the window exporter.
+        
+        Args:
+            zip_path: Path to the ZIP file
+            window_size: Number of lines per window (1, 2, 3, etc.)
+            overlap: Number of lines to overlap between windows
+        """
+        super().__init__(zip_path)
+        self.window_size = window_size
+        self.overlap = overlap
+        
+        if overlap >= window_size:
+            raise ValueError("Overlap must be less than window size")
+    
+    def export(self, pages: List[PageData]) -> Dataset:
+        """Export sliding windows of lines as separate dataset entries."""
+        data = []
+        
+        with zipfile.ZipFile(self.zip_path, 'r') as zip_file:
+            for page in tqdm(pages, desc="Processing pages"):
+                image_path = self._find_image_path(zip_file, page)
+                if image_path:
+                    full_image = self._load_image_from_zip(zip_file, image_path)
+                    if full_image:
+                        for region in page.regions:
+                            # Generate sliding windows for this region
+                            windows = self._create_windows(region.text_lines)
+                            
+                            for window_idx, window_lines in enumerate(windows):
+                                # Calculate bounding box for all lines in this window
+                                line_coords = [line.coords for line in window_lines if line.coords]
+                                if line_coords:
+                                    window_coords = self._calculate_bounding_box(line_coords)
+                                    window_image = self._crop_region(full_image, window_coords)
+                                    
+                                    if window_image:
+                                        # Combine text from all lines in window
+                                        window_text = '\n'.join([line.text for line in window_lines if line.text])
+                                        
+                                        # Create line info for metadata
+                                        line_ids = [line.id for line in window_lines]
+                                        line_orders = [line.reading_order for line in window_lines]
+                                        
+                                        data.append({
+                                            'image': window_image,
+                                            'text': window_text,
+                                            'window_size': len(window_lines),
+                                            'window_index': window_idx,
+                                            'line_ids': ', '.join(line_ids),
+                                            'line_reading_orders': ', '.join(map(str, line_orders)),
+                                            'region_id': region.id,
+                                            'region_reading_order': region.reading_order,
+                                            'region_type': region.type,
+                                            'filename': page.image_filename,
+                                            'project': page.project_name
+                                        })
+                                        self.processed_count += 1
+        
+        self._print_summary()
+        
+        features = Features({
+            'image': DatasetImage(),
+            'text': Value('string'),
+            'window_size': Value('int32'),
+            'window_index': Value('int32'),
+            'line_ids': Value('string'),
+            'line_reading_orders': Value('string'),
+            'region_id': Value('string'),
+            'region_reading_order': Value('int32'),
+            'region_type': Value('string'),
+            'filename': Value('string'),
+            'project': Value('string')
+        })
+        
+        return Dataset.from_list(data, features=features)
+    
+    def _create_windows(self, lines: List[TextLine]) -> List[List[TextLine]]:
+        """Create sliding windows of lines with specified size and overlap."""
+        if not lines:
+            return []
+        
+        windows = []
+        step = self.window_size - self.overlap
+        
+        for i in range(0, len(lines), step):
+            window = lines[i:i + self.window_size]
+            if len(window) > 0:  # Always include windows, even if smaller than window_size
+                windows.append(window)
+            
+            # Stop if we've reached the end and the last window would be too small
+            # (unless we want to include partial windows)
+            if i + self.window_size >= len(lines):
+                break
+        
+        return windows 

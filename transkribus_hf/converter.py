@@ -14,6 +14,7 @@ from .exporters import (
     TextExporter,
     RegionExporter,
     LineExporter,
+    WindowExporter,
     BaseExporter
 )
 
@@ -26,6 +27,7 @@ class TranskribusConverter:
         'text': TextExporter,
         'region': RegionExporter,
         'line': LineExporter,
+        'window': WindowExporter,
     }
     
     def __init__(self, zip_path: str):
@@ -45,12 +47,14 @@ class TranskribusConverter:
         self.pages = self.parser.parse_zip(self.zip_path)
         print(f"Parsed {len(self.pages)} pages")
     
-    def convert(self, export_mode: str = 'text') -> Dataset:
+    def convert(self, export_mode: str = 'text', window_size: int = 2, overlap: int = 0) -> Dataset:
         """
         Convert parsed data to a HuggingFace dataset.
         
         Args:
-            export_mode: Export mode ('raw_xml', 'text', 'region', 'line')
+            export_mode: Export mode ('raw_xml', 'text', 'region', 'line', 'window')
+            window_size: Number of lines per window (only for window mode)
+            overlap: Number of lines to overlap between windows (only for window mode)
             
         Returns:
             HuggingFace Dataset
@@ -62,9 +66,15 @@ class TranskribusConverter:
             raise ValueError(f"Invalid export mode: {export_mode}. Available modes: {list(self.EXPORT_MODES.keys())}")
         
         exporter_class = self.EXPORT_MODES[export_mode]
-        exporter = exporter_class(self.zip_path)
         
-        print(f"Converting to {export_mode} format...")
+        # Handle window mode with special parameters
+        if export_mode == 'window':
+            exporter = exporter_class(self.zip_path, window_size=window_size, overlap=overlap)
+            print(f"Converting to {export_mode} format (window_size={window_size}, overlap={overlap})...")
+        else:
+            exporter = exporter_class(self.zip_path)
+            print(f"Converting to {export_mode} format...")
+        
         dataset = exporter.export(self.pages)
         print(f"Created dataset with {len(dataset)} examples")
         
@@ -147,22 +157,26 @@ class TranskribusConverter:
         export_mode: str = 'text',
         token: Optional[str] = None,
         private: bool = False,
-        commit_message: Optional[str] = None
+        commit_message: Optional[str] = None,
+        window_size: int = 2,
+        overlap: int = 0
     ) -> str:
         """
         Convert and upload in one step.
         
         Args:
             repo_id: Repository ID (e.g., "username/dataset-name")
-            export_mode: Export mode ('raw_xml', 'text', 'region', 'line')
+            export_mode: Export mode ('raw_xml', 'text', 'region', 'line', 'window')
             token: HuggingFace token
             private: Whether to make the repo private
             commit_message: Custom commit message
+            window_size: Number of lines per window (only for window mode)
+            overlap: Number of lines to overlap between windows (only for window mode)
             
         Returns:
             Repository URL
         """
-        dataset = self.convert(export_mode)
+        dataset = self.convert(export_mode=export_mode, window_size=window_size, overlap=overlap)
         return self.upload_to_hub(
             dataset=dataset,
             repo_id=repo_id,
