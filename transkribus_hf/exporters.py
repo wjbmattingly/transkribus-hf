@@ -9,7 +9,6 @@ from PIL import Image, ImageFile
 import io
 import numpy as np
 from datasets import Dataset, Features, Value, Image as DatasetImage
-from tqdm import tqdm
 
 from .parser import PageData, TextRegion, TextLine
 
@@ -147,23 +146,22 @@ class RawXMLExporter(BaseExporter):
     
     def export(self, pages: List[PageData]) -> Dataset:
         """Export pages as image + raw XML pairs."""
-        data = []
         
-        with zipfile.ZipFile(self.zip_path, 'r') as zip_file:
-            for page in tqdm(pages, desc="Processing pages"):
-                image_path = self._find_image_path(zip_file, page)
-                if image_path:
-                    image = self._load_image_from_zip(zip_file, image_path)
-                    if image:
-                        data.append({
-                            'image': image,
-                            'xml': page.xml_content,
-                            'filename': page.image_filename,
-                            'project': page.project_name
-                        })
-                        self.processed_count += 1
-        
-        self._print_summary()
+        def generate_examples():
+            with zipfile.ZipFile(self.zip_path, 'r') as zip_file:
+                for page in pages:
+                    image_path = self._find_image_path(zip_file, page)
+                    if image_path:
+                        image = self._load_image_from_zip(zip_file, image_path)
+                        if image:
+                            self.processed_count += 1
+                            
+                            yield {
+                                'image': image,
+                                'xml': page.xml_content,
+                                'filename': page.image_filename,
+                                'project': page.project_name
+                            }
         
         features = Features({
             'image': DatasetImage(),
@@ -172,7 +170,14 @@ class RawXMLExporter(BaseExporter):
             'project': Value('string')
         })
         
-        return Dataset.from_list(data, features=features)
+        dataset = Dataset.from_generator(
+            generate_examples,
+            features=features,
+            cache_dir=None
+        )
+        
+        self._print_summary()
+        return dataset
 
 
 class TextExporter(BaseExporter):
@@ -180,26 +185,25 @@ class TextExporter(BaseExporter):
     
     def export(self, pages: List[PageData]) -> Dataset:
         """Export pages as image + full text pairs."""
-        data = []
         
-        with zipfile.ZipFile(self.zip_path, 'r') as zip_file:
-            for page in tqdm(pages, desc="Processing pages"):
-                image_path = self._find_image_path(zip_file, page)
-                if image_path:
-                    image = self._load_image_from_zip(zip_file, image_path)
-                    if image:
-                        # Concatenate all text from regions in reading order
-                        full_text = '\n'.join([region.full_text for region in page.regions if region.full_text])
-                        
-                        data.append({
-                            'image': image,
-                            'text': full_text,
-                            'filename': page.image_filename,
-                            'project': page.project_name
-                        })
-                        self.processed_count += 1
-        
-        self._print_summary()
+        def generate_examples():
+            with zipfile.ZipFile(self.zip_path, 'r') as zip_file:
+                for page in pages:
+                    image_path = self._find_image_path(zip_file, page)
+                    if image_path:
+                        image = self._load_image_from_zip(zip_file, image_path)
+                        if image:
+                            # Concatenate all text from regions in reading order
+                            full_text = '\n'.join([region.full_text for region in page.regions if region.full_text])
+                            
+                            self.processed_count += 1
+                            
+                            yield {
+                                'image': image,
+                                'text': full_text,
+                                'filename': page.image_filename,
+                                'project': page.project_name
+                            }
         
         features = Features({
             'image': DatasetImage(),
@@ -208,7 +212,14 @@ class TextExporter(BaseExporter):
             'project': Value('string')
         })
         
-        return Dataset.from_list(data, features=features)
+        dataset = Dataset.from_generator(
+            generate_examples,
+            features=features,
+            cache_dir=None
+        )
+        
+        self._print_summary()
+        return dataset
 
 
 class RegionExporter(BaseExporter):
@@ -216,29 +227,28 @@ class RegionExporter(BaseExporter):
     
     def export(self, pages: List[PageData]) -> Dataset:
         """Export each region as a separate dataset entry."""
-        data = []
         
-        with zipfile.ZipFile(self.zip_path, 'r') as zip_file:
-            for page in tqdm(pages, desc="Processing pages"):
-                image_path = self._find_image_path(zip_file, page)
-                if image_path:
-                    full_image = self._load_image_from_zip(zip_file, image_path)
-                    if full_image:
-                        for region in page.regions:
-                            region_image = self._crop_region(full_image, region.coords)
-                            if region_image:
-                                data.append({
-                                    'image': region_image,
-                                    'text': region.full_text,
-                                    'region_type': region.type,
-                                    'region_id': region.id,
-                                    'reading_order': region.reading_order,
-                                    'filename': page.image_filename,
-                                    'project': page.project_name
-                                })
-                                self.processed_count += 1
-        
-        self._print_summary()
+        def generate_examples():
+            with zipfile.ZipFile(self.zip_path, 'r') as zip_file:
+                for page in pages:
+                    image_path = self._find_image_path(zip_file, page)
+                    if image_path:
+                        full_image = self._load_image_from_zip(zip_file, image_path)
+                        if full_image:
+                            for region in page.regions:
+                                region_image = self._crop_region(full_image, region.coords)
+                                if region_image:
+                                    self.processed_count += 1
+                                    
+                                    yield {
+                                        'image': region_image,
+                                        'text': region.full_text,
+                                        'region_type': region.type,
+                                        'region_id': region.id,
+                                        'reading_order': region.reading_order,
+                                        'filename': page.image_filename,
+                                        'project': page.project_name
+                                    }
         
         features = Features({
             'image': DatasetImage(),
@@ -250,7 +260,14 @@ class RegionExporter(BaseExporter):
             'project': Value('string')
         })
         
-        return Dataset.from_list(data, features=features)
+        dataset = Dataset.from_generator(
+            generate_examples,
+            features=features,
+            cache_dir=None
+        )
+        
+        self._print_summary()
+        return dataset
 
 
 class LineExporter(BaseExporter):
@@ -258,32 +275,31 @@ class LineExporter(BaseExporter):
     
     def export(self, pages: List[PageData]) -> Dataset:
         """Export each text line as a separate dataset entry."""
-        data = []
         
-        with zipfile.ZipFile(self.zip_path, 'r') as zip_file:
-            for page in tqdm(pages, desc="Processing pages"):
-                image_path = self._find_image_path(zip_file, page)
-                if image_path:
-                    full_image = self._load_image_from_zip(zip_file, image_path)
-                    if full_image:
-                        for region in page.regions:
-                            for line in region.text_lines:
-                                line_image = self._crop_region(full_image, line.coords)
-                                if line_image:
-                                    data.append({
-                                        'image': line_image,
-                                        'text': line.text,
-                                        'line_id': line.id,
-                                        'line_reading_order': line.reading_order,
-                                        'region_id': line.region_id,
-                                        'region_reading_order': region.reading_order,
-                                        'region_type': region.type,
-                                        'filename': page.image_filename,
-                                        'project': page.project_name
-                                    })
-                                    self.processed_count += 1
-        
-        self._print_summary()
+        def generate_examples():
+            with zipfile.ZipFile(self.zip_path, 'r') as zip_file:
+                for page in pages:
+                    image_path = self._find_image_path(zip_file, page)
+                    if image_path:
+                        full_image = self._load_image_from_zip(zip_file, image_path)
+                        if full_image:
+                            for region in page.regions:
+                                for line in region.text_lines:
+                                    line_image = self._crop_region(full_image, line.coords)
+                                    if line_image:
+                                        self.processed_count += 1
+                                        
+                                        yield {
+                                            'image': line_image,
+                                            'text': line.text,
+                                            'line_id': line.id,
+                                            'line_reading_order': line.reading_order,
+                                            'region_id': line.region_id,
+                                            'region_reading_order': region.reading_order,
+                                            'region_type': region.type,
+                                            'filename': page.image_filename,
+                                            'project': page.project_name
+                                        }
         
         features = Features({
             'image': DatasetImage(),
@@ -297,7 +313,14 @@ class LineExporter(BaseExporter):
             'project': Value('string')
         })
         
-        return Dataset.from_list(data, features=features)
+        dataset = Dataset.from_generator(
+            generate_examples,
+            features=features,
+            cache_dir=None
+        )
+        
+        self._print_summary()
+        return dataset
 
 
 class WindowExporter(BaseExporter):
@@ -321,50 +344,50 @@ class WindowExporter(BaseExporter):
     
     def export(self, pages: List[PageData]) -> Dataset:
         """Export sliding windows of lines as separate dataset entries."""
-        data = []
         
-        with zipfile.ZipFile(self.zip_path, 'r') as zip_file:
-            for page in tqdm(pages, desc="Processing pages"):
-                image_path = self._find_image_path(zip_file, page)
-                if image_path:
-                    full_image = self._load_image_from_zip(zip_file, image_path)
-                    if full_image:
-                        for region in page.regions:
-                            # Generate sliding windows for this region
-                            windows = self._create_windows(region.text_lines)
-                            
-                            for window_idx, window_lines in enumerate(windows):
-                                # Calculate bounding box for all lines in this window
-                                line_coords = [line.coords for line in window_lines if line.coords]
-                                if line_coords:
-                                    window_coords = self._calculate_bounding_box(line_coords)
-                                    window_image = self._crop_region(full_image, window_coords)
-                                    
-                                    if window_image:
-                                        # Combine text from all lines in window
-                                        window_text = '\n'.join([line.text for line in window_lines if line.text])
+        def generate_examples():
+            with zipfile.ZipFile(self.zip_path, 'r') as zip_file:
+                for page in pages:
+                    image_path = self._find_image_path(zip_file, page)
+                    if image_path:
+                        full_image = self._load_image_from_zip(zip_file, image_path)
+                        if full_image:
+                            for region in page.regions:
+                                # Generate sliding windows for this region
+                                windows = self._create_windows(region.text_lines)
+                                
+                                for window_idx, window_lines in enumerate(windows):
+                                    # Calculate bounding box for all lines in this window
+                                    line_coords = [line.coords for line in window_lines if line.coords]
+                                    if line_coords:
+                                        window_coords = self._calculate_bounding_box(line_coords)
+                                        window_image = self._crop_region(full_image, window_coords)
                                         
-                                        # Create line info for metadata
-                                        line_ids = [line.id for line in window_lines]
-                                        line_orders = [line.reading_order for line in window_lines]
-                                        
-                                        data.append({
-                                            'image': window_image,
-                                            'text': window_text,
-                                            'window_size': len(window_lines),
-                                            'window_index': window_idx,
-                                            'line_ids': ', '.join(line_ids),
-                                            'line_reading_orders': ', '.join(map(str, line_orders)),
-                                            'region_id': region.id,
-                                            'region_reading_order': region.reading_order,
-                                            'region_type': region.type,
-                                            'filename': page.image_filename,
-                                            'project': page.project_name
-                                        })
-                                        self.processed_count += 1
+                                        if window_image:
+                                            # Combine text from all lines in window
+                                            window_text = '\n'.join([line.text for line in window_lines if line.text])
+                                            
+                                            # Create line info for metadata
+                                            line_ids = [line.id for line in window_lines]
+                                            line_orders = [line.reading_order for line in window_lines]
+                                            
+                                            self.processed_count += 1
+                                            
+                                            yield {
+                                                'image': window_image,
+                                                'text': window_text,
+                                                'window_size': len(window_lines),
+                                                'window_index': window_idx,
+                                                'line_ids': ', '.join(line_ids),
+                                                'line_reading_orders': ', '.join(map(str, line_orders)),
+                                                'region_id': region.id,
+                                                'region_reading_order': region.reading_order,
+                                                'region_type': region.type,
+                                                'filename': page.image_filename,
+                                                'project': page.project_name
+                                            }
         
-        self._print_summary()
-        
+        # Create dataset using generator to avoid memory issues
         features = Features({
             'image': DatasetImage(),
             'text': Value('string'),
@@ -379,7 +402,14 @@ class WindowExporter(BaseExporter):
             'project': Value('string')
         })
         
-        return Dataset.from_list(data, features=features)
+        dataset = Dataset.from_generator(
+            generate_examples,
+            features=features,
+            cache_dir=None  # Disable caching to save memory
+        )
+        
+        self._print_summary()
+        return dataset
     
     def _create_windows(self, lines: List[TextLine]) -> List[List[TextLine]]:
         """Create sliding windows of lines with specified size and overlap."""

@@ -32,6 +32,7 @@ setup(
         "lxml>=4.6.0",
         "numpy>=1.21.0",
         "tqdm>=4.62.0",
+        "chardet>=4.0.0",
     ],
     extras_require={
         "dev": [

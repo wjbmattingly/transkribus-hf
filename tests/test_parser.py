@@ -96,6 +96,19 @@ Test line 2</Unicode>
         self.assertEqual(line1.id, "line_1")
         self.assertEqual(line1.text, "Test line 1")
         self.assertEqual(line1.reading_order, 0)
+    
+    def test_macos_metadata_file_filtering(self):
+        """Test that macOS metadata files are properly filtered out."""
+        # Test files that should be filtered out
+        self.assertTrue(self.parser._is_macos_metadata_file("__MACOSX/file.xml"))
+        self.assertTrue(self.parser._is_macos_metadata_file("._file.xml"))
+        self.assertTrue(self.parser._is_macos_metadata_file("project/._page.xml"))
+        self.assertTrue(self.parser._is_macos_metadata_file("project/.DS_Store"))
+        
+        # Test files that should NOT be filtered out
+        self.assertFalse(self.parser._is_macos_metadata_file("project/page/file.xml"))
+        self.assertFalse(self.parser._is_macos_metadata_file("project/page/valid.xml"))
+        self.assertFalse(self.parser._is_macos_metadata_file("normal_file.xml"))
 
 
 if __name__ == '__main__':

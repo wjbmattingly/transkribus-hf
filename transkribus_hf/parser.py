@@ -8,6 +8,7 @@ from pathlib import Path
 from typing import Dict, List, Optional, Tuple, Any
 from dataclasses import dataclass
 import re
+import chardet
 
 @dataclass
 class TextLine:
@@ -67,13 +68,20 @@ class TranskribusParser:
             projects = self._group_files_by_project(file_list)
             
             for project_name, project_files in projects.items():
-                # Find XML files in the page subdirectory
-                xml_files = [f for f in project_files if f.endswith('.xml') and '/page/' in f]
+                # Find XML files in the page subdirectory, filtering out macOS metadata
+                xml_files = [
+                    f for f in project_files 
+                    if f.endswith('.xml') and '/page/' in f 
+                    and not self._is_macos_metadata_file(f)
+                ]
                 
                 for xml_file in xml_files:
                     try:
-                        # Read XML content
-                        xml_content = zip_file.read(xml_file).decode('utf-8')
+                        # Read XML content with encoding detection
+                        xml_content = self._read_xml_with_encoding(zip_file, xml_file)
+                        
+                        if xml_content is None:
+                            continue
                         
                         # Parse the XML
                         page_data = self._parse_page_xml(xml_content, project_name)
@@ -97,6 +105,56 @@ class TranskribusParser:
                 projects[project_name].append(file_path)
         
         return projects
+    
+    def _is_macos_metadata_file(self, file_path: str) -> bool:
+        """Check if a file is a macOS metadata file that should be skipped."""
+        # Skip __MACOSX directory and ._ prefixed files
+        if '__MACOSX' in file_path or file_path.startswith('._'):
+            return True
+        
+        # Skip other common macOS metadata patterns
+        if '/.' in file_path and not file_path.endswith('.xml'):
+            return True
+        
+        return False
+    
+    def _read_xml_with_encoding(self, zip_file: zipfile.ZipFile, xml_file: str) -> Optional[str]:
+        """Read XML content with automatic encoding detection and fallback."""
+        try:
+            # First try UTF-8
+            raw_content = zip_file.read(xml_file)
+            try:
+                return raw_content.decode('utf-8')
+            except UnicodeDecodeError:
+                pass
+            
+            # Try to detect encoding using chardet
+            try:
+                detected = chardet.detect(raw_content)
+                if detected and detected['confidence'] > 0.7:
+                    encoding = detected['encoding']
+                    if encoding:
+                        try:
+                            return raw_content.decode(encoding)
+                        except (UnicodeDecodeError, LookupError):
+                            pass
+            except ImportError:
+                # chardet not available, try common encodings
+                pass
+            
+            # Fallback to common encodings
+            for encoding in ['latin-1', 'cp1252', 'iso-8859-1']:
+                try:
+                    return raw_content.decode(encoding)
+                except UnicodeDecodeError:
+                    continue
+            
+            print(f"Could not decode {xml_file} with any supported encoding")
+            return None
+            
+        except Exception as e:
+            print(f"Error reading {xml_file}: {e}")
+            return None
     
     def _parse_page_xml(self, xml_content: str, project_name: str) -> Optional[PageData]:
         """Parse a single PAGE XML file."""
