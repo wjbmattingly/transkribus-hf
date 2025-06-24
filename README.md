@@ -232,17 +232,3 @@ MIT License - see LICENSE file for details.
 ## Contributing
 
 Contributions are welcome! Please feel free to submit a Pull Request.
-
-## Citation
-
-If you use this package in your research, please cite:
-
-```bibtex
-@software{mattingly2024_transkribus_hf,
-  author = {Mattingly, William J.B.},
-  title = {transkribus-hf: Convert Transkribus ZIP files to HuggingFace datasets},
-  year = {2024},
-  publisher = {GitHub},
-  url = {https://github.com/wjbmattingly/transkribus-hf}
-}
-``` 
