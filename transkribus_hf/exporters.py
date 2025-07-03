@@ -48,6 +48,9 @@ class BaseExporter(ABC):
             if image.mode != 'RGB':
                 image = image.convert('RGB')
             
+            # Correct orientation based on EXIF data
+            image = self._correct_orientation(image)
+            
             return image
             
         except Exception as e:
@@ -303,9 +306,6 @@ class LineExporter(BaseExporter):
                     if image_path:
                         full_image = self._load_image_from_zip(zip_file, image_path)
                         if full_image:
-                            # Correct orientation if necessary, important for line extraction
-                            full_image = self._correct_orientation(full_image)
-                            
                             for region in page.regions:
                                 for line in region.text_lines:
                                     line_image = self._crop_region(full_image, line.coords)
