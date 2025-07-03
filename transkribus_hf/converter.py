@@ -47,7 +47,15 @@ class TranskribusConverter:
         self.pages = self.parser.parse_zip(self.zip_path)
         print(f"Parsed {len(self.pages)} pages")
     
-    def convert(self, export_mode: str = 'text', window_size: int = 2, overlap: int = 0) -> Dataset:
+    def convert(
+            self,
+            export_mode: str = 'text',
+            window_size: int = 2,
+            overlap: int = 0,
+            split_train: Optional[float] = None,
+            split_seed: Optional[int] = 42,
+            split_shuffle: Optional[bool] = False,
+        ) -> Dataset:
         """
         Convert parsed data to a HuggingFace dataset.
         
@@ -77,6 +85,12 @@ class TranskribusConverter:
         
         dataset = exporter.export(self.pages)
         print(f"Created dataset with {len(dataset)} examples")
+
+        if split_train is not None:
+            if not (0 < split_train < 1):
+                raise ValueError("split_train must be between 0 and 1")
+            dataset = dataset.train_test_split(train_size=split_train, shuffle=split_shuffle, seed=split_seed)
+            print(f"Train size: {len(dataset['train'])}, Test size: {len(dataset['test'])}")
         
         return dataset
     
