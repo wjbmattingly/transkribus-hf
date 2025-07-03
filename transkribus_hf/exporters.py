@@ -140,6 +140,26 @@ class BaseExporter(ABC):
             if len(self.failed_images) > 5:
                 print(f"    ... and {len(self.failed_images) - 5} more")
 
+    @staticmethod
+    def _correct_orientation(image: Image.Image) -> Image.Image:
+        try:
+            exif = image.getexif()
+        
+            if exif:
+                # key 274 = orientation, returns 1 if not existing
+                orientation = exif.get(274, 1)
+
+                if orientation == 3:
+                    image = image.rotate(180, expand=True)
+                elif orientation == 6:
+                    image = image.rotate(270, expand=True)
+                elif orientation == 8:
+                    image = image.rotate(90, expand=True)
+        except (AttributeError, KeyError, IndexError):
+            pass
+        
+        return image
+
 
 class RawXMLExporter(BaseExporter):
     """Export raw images with their corresponding XML content."""
@@ -283,6 +303,9 @@ class LineExporter(BaseExporter):
                     if image_path:
                         full_image = self._load_image_from_zip(zip_file, image_path)
                         if full_image:
+                            # Correct orientation if necessary, important for line extraction
+                            full_image = self._correct_orientation(full_image)
+                            
                             for region in page.regions:
                                 for line in region.text_lines:
                                     line_image = self._crop_region(full_image, line.coords)
