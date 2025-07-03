@@ -56,6 +56,26 @@ def main():
         action="store_true",
         help="Make the repository private"
     )
+
+    parser.add_argument(
+        "--split-train",
+        type=float,
+        default=None,
+        help="Split ratio for train split. Between 0 and 1, default: None (means no split), e.g. 0.8 for 80%% train, 20%% test"
+    )
+
+    parser.add_argument(
+        "--split-seed",
+        type=int,
+        default=42,
+        help="Random seed for train/test split (default: 42)"
+    )
+
+    parser.add_argument(
+        "--split-shuffle",
+        action="store_true",
+        help="Shuffle the dataset before splitting (default: False)"
+    )
     
     parser.add_argument(
         "--stats-only",
@@ -127,7 +147,10 @@ def main():
         dataset = converter.convert(
             export_mode=args.mode,
             window_size=args.window_size,
-            overlap=args.overlap
+            overlap=args.overlap,
+            split_train=args.split_train,
+            split_seed=args.split_seed,
+            split_shuffle=args.split_shuffle,
         )
         
         if args.local_only:
