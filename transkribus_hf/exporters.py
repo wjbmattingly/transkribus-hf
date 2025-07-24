@@ -5,7 +5,7 @@ Exporters for converting parsed Transkribus data to different HuggingFace datase
 import zipfile
 from abc import ABC, abstractmethod
 from typing import Dict, List, Any, Optional, Tuple
-from PIL import Image, ImageFile
+from PIL import Image, ImageFile, ImageDraw
 import io
 import numpy as np
 from datasets import Dataset, Features, Value, Image as DatasetImage
@@ -107,6 +107,54 @@ class BaseExporter(ABC):
             print(f"Warning: Error cropping region: {e}")
             return None
     
+    def _crop_region_polygon(self, image: Image.Image, coords: List[Tuple[int, int]], padding: int = 5) -> Optional[Image.Image]:
+        """Crop a region from an image using polygon masking to preserve original shape."""
+        if not coords or len(coords) < 3:
+            return None
+        
+        try:
+            # Calculate bounding box for the crop area
+            x_coords = [coord[0] for coord in coords]
+            y_coords = [coord[1] for coord in coords]
+            
+            min_x, max_x = min(x_coords), max(x_coords)
+            min_y, max_y = min(y_coords), max(y_coords)
+            
+            # Add padding
+            min_x = max(0, min_x - padding)
+            min_y = max(0, min_y - padding)
+            max_x = min(image.width, max_x + padding)
+            max_y = min(image.height, max_y + padding)
+            
+            # Check if the crop area is valid
+            if min_x >= max_x or min_y >= max_y:
+                print(f"Warning: Invalid crop coordinates: ({min_x}, {min_y}, {max_x}, {max_y})")
+                return None
+            
+            # Crop the bounding box first
+            cropped_image = image.crop((min_x, min_y, max_x, max_y))
+            
+            # Adjust coordinates relative to the cropped image
+            adjusted_coords = [(x - min_x, y - min_y) for x, y in coords]
+            
+            # Create a mask for the polygon
+            mask = Image.new('L', cropped_image.size, 0)
+            mask_draw = ImageDraw.Draw(mask)
+            mask_draw.polygon(adjusted_coords, fill=255)
+            
+            # Create a white background image
+            result = Image.new('RGB', cropped_image.size, (255, 255, 255))
+            
+            # Paste the cropped image onto the white background using the polygon mask
+            result.paste(cropped_image, (0, 0), mask)
+            
+            return result
+            
+        except Exception as e:
+            print(f"Warning: Error cropping polygon region: {e}")
+            # Fallback to rectangular crop
+            return self._crop_region(image, coords)
+
     def _calculate_bounding_box(self, coords_list: List[List[Tuple[int, int]]]) -> List[Tuple[int, int]]:
         """Calculate the bounding box that encompasses multiple coordinate sets."""
         if not coords_list:
@@ -429,4 +477,107 @@ class WindowExporter(BaseExporter):
             if i + self.window_size >= len(lines):
                 break
         
-        return windows 
+        return windows
+
+
+class PolygonRegionExporter(BaseExporter):
+    """Export individual regions as separate images preserving original polygon shapes."""
+    
+    def export(self, pages: List[PageData]) -> Dataset:
+        """Export each region as a separate dataset entry using polygon cropping."""
+        
+        def generate_examples():
+            with zipfile.ZipFile(self.zip_path, 'r') as zip_file:
+                for page in pages:
+                    image_path = self._find_image_path(zip_file, page)
+                    if image_path:
+                        full_image = self._load_image_from_zip(zip_file, image_path)
+                        if full_image:
+                            for region in page.regions:
+                                region_image = self._crop_region_polygon(full_image, region.coords)
+                                if region_image:
+                                    self.processed_count += 1
+                                    
+                                    yield {
+                                        'image': region_image,
+                                        'text': region.full_text,
+                                        'region_type': region.type,
+                                        'region_id': region.id,
+                                        'reading_order': region.reading_order,
+                                        'filename': page.image_filename,
+                                        'project': page.project_name,
+                                        'coords': str(region.coords)  # Store original coordinates as string
+                                    }
+        
+        features = Features({
+            'image': DatasetImage(),
+            'text': Value('string'),
+            'region_type': Value('string'),
+            'region_id': Value('string'),
+            'reading_order': Value('int32'),
+            'filename': Value('string'),
+            'project': Value('string'),
+            'coords': Value('string')
+        })
+        
+        dataset = Dataset.from_generator(
+            generate_examples,
+            features=features,
+            cache_dir=None
+        )
+        
+        self._print_summary()
+        return dataset
+
+
+class PolygonLineExporter(BaseExporter):
+    """Export individual text lines as separate images preserving original polygon shapes."""
+    
+    def export(self, pages: List[PageData]) -> Dataset:
+        """Export each text line as a separate dataset entry using polygon cropping."""
+        
+        def generate_examples():
+            with zipfile.ZipFile(self.zip_path, 'r') as zip_file:
+                for page in pages:
+                    image_path = self._find_image_path(zip_file, page)
+                    if image_path:
+                        full_image = self._load_image_from_zip(zip_file, image_path)
+                        if full_image:
+                            for region in page.regions:
+                                for line in region.text_lines:
+                                    line_image = self._crop_region_polygon(full_image, line.coords)
+                                    if line_image:
+                                        self.processed_count += 1
+                                        
+                                        yield {
+                                            'image': line_image,
+                                            'text': line.text,
+                                            'line_id': line.id,
+                                            'region_id': line.region_id,
+                                            'reading_order': line.reading_order,
+                                            'filename': page.image_filename,
+                                            'project': page.project_name,
+                                            'coords': str(line.coords),  # Store original coordinates
+                                            'baseline': str(line.baseline) if line.baseline else None
+                                        }
+        
+        features = Features({
+            'image': DatasetImage(),
+            'text': Value('string'),
+            'line_id': Value('string'),
+            'region_id': Value('string'),
+            'reading_order': Value('int32'),
+            'filename': Value('string'),
+            'project': Value('string'),
+            'coords': Value('string'),
+            'baseline': Value('string')
+        })
+        
+        dataset = Dataset.from_generator(
+            generate_examples,
+            features=features,
+            cache_dir=None
+        )
+        
+        self._print_summary()
+        return dataset

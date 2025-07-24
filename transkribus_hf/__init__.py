@@ -10,6 +10,8 @@ from .exporters import (
     RegionExporter,
     LineExporter,
     WindowExporter,
+    PolygonRegionExporter,
+    PolygonLineExporter,
 )
 
 __version__ = "0.1.0"
@@ -23,4 +25,6 @@ __all__ = [
     "RegionExporter",
     "LineExporter",
     "WindowExporter",
+    "PolygonRegionExporter",
+    "PolygonLineExporter",
 ] 

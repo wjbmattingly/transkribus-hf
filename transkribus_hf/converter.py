@@ -15,6 +15,8 @@ from .exporters import (
     RegionExporter,
     LineExporter,
     WindowExporter,
+    PolygonRegionExporter,
+    PolygonLineExporter,
     BaseExporter
 )
 
@@ -28,6 +30,8 @@ class TranskribusConverter:
         'region': RegionExporter,
         'line': LineExporter,
         'window': WindowExporter,
+        'polygon_region': PolygonRegionExporter,
+        'polygon_line': PolygonLineExporter,
     }
     
     def __init__(self, zip_path: str):

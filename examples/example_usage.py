@@ -90,9 +90,54 @@ def main():
         print(f"  Filename: {sample['filename']}")
         print(f"  XML preview: {sample['xml'][:300]}...")
     
-    # Example 5: Save datasets locally
+    # Example 5: Convert to polygon region format (NEW!)
     print("\n" + "="*50)
-    print("EXAMPLE 5: SAVING LOCALLY")
+    print("EXAMPLE 5: POLYGON REGION FORMAT")
+    print("="*50)
+    polygon_region_dataset = converter.convert(export_mode='polygon_region')
+    print(f"Created polygon region dataset with {len(polygon_region_dataset)} examples")
+    print("Sample polygon region:")
+    if len(polygon_region_dataset) > 0:
+        sample = polygon_region_dataset[0]
+        print(f"  Region ID: {sample['region_id']}")
+        print(f"  Region type: {sample['region_type']}")
+        print(f"  Reading order: {sample['reading_order']}")
+        print(f"  Coordinates: {sample['coords'][:100]}...")
+        print(f"  Text: {sample['text'][:100]}...")
+    
+    # Example 6: Convert to polygon line format (NEW!)
+    print("\n" + "="*50)
+    print("EXAMPLE 6: POLYGON LINE FORMAT")
+    print("="*50)
+    polygon_line_dataset = converter.convert(export_mode='polygon_line')
+    print(f"Created polygon line dataset with {len(polygon_line_dataset)} examples")
+    print("Sample polygon line:")
+    if len(polygon_line_dataset) > 0:
+        sample = polygon_line_dataset[0]
+        print(f"  Line ID: {sample['line_id']}")
+        print(f"  Region ID: {sample['region_id']}")
+        print(f"  Reading order: {sample['reading_order']}")
+        print(f"  Coordinates: {sample['coords'][:100]}...")
+        print(f"  Baseline: {sample.get('baseline', 'None')}")
+        print(f"  Text: {sample['text']}")
+    
+    # Example 7: Convert to window format
+    print("\n" + "="*50)
+    print("EXAMPLE 7: WINDOW FORMAT")
+    print("="*50)
+    window_dataset = converter.convert(export_mode='window', window_size=3, overlap=1)
+    print(f"Created window dataset with {len(window_dataset)} examples (window_size=3, overlap=1)")
+    print("Sample window:")
+    if len(window_dataset) > 0:
+        sample = window_dataset[0]
+        print(f"  Window size: {sample['window_size']}")
+        print(f"  Window index: {sample['window_index']}")
+        print(f"  Line IDs: {sample['line_ids']}")
+        print(f"  Text: {sample['text'][:150]}...")
+    
+    # Example 8: Save datasets locally
+    print("\n" + "="*50)
+    print("EXAMPLE 8: SAVING LOCALLY")
     print("="*50)
     output_dir = "./example_datasets"
     
@@ -101,16 +146,22 @@ def main():
     region_dataset.save_to_disk(f"{output_dir}/region_format")
     line_dataset.save_to_disk(f"{output_dir}/line_format")
     xml_dataset.save_to_disk(f"{output_dir}/xml_format")
+    polygon_region_dataset.save_to_disk(f"{output_dir}/polygon_region_format")
+    polygon_line_dataset.save_to_disk(f"{output_dir}/polygon_line_format")
+    window_dataset.save_to_disk(f"{output_dir}/window_format")
     
     print(f"Datasets saved to {output_dir}/")
     print("- text_format/")
     print("- region_format/")
     print("- line_format/")
     print("- xml_format/")
+    print("- polygon_region_format/")
+    print("- polygon_line_format/")
+    print("- window_format/")
     
-    # Example 6: Upload to HuggingFace Hub (commented out)
+    # Example 9: Upload to HuggingFace Hub (commented out)
     print("\n" + "="*50)
-    print("EXAMPLE 6: UPLOAD TO HUGGINGFACE HUB")
+    print("EXAMPLE 9: UPLOAD TO HUGGINGFACE HUB")
     print("="*50)
     print("To upload to HuggingFace Hub, uncomment the following code:")
     print("Make sure to set your HF_TOKEN environment variable or pass the token parameter")
@@ -137,4 +188,4 @@ def main():
 
 
 if __name__ == "__main__":
-    main() 
+    main()

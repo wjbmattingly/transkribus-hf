@@ -50,7 +50,7 @@ Exports the image with concatenated text from all regions.
 - `project`: Project name
 
 ### 3. Region (`region`)
-Exports each text region as a separate cropped image.
+Exports each text region as a separate **rectangular** cropped image.
 
 **Fields:**
 - `image`: Cropped region image
@@ -62,7 +62,7 @@ Exports each text region as a separate cropped image.
 - `project`: Project name
 
 ### 4. Line (`line`)
-Exports each text line as a separate cropped image.
+Exports each text line as a separate **rectangular** cropped image.
 
 **Fields:**
 - `image`: Cropped line image
@@ -75,7 +75,44 @@ Exports each text line as a separate cropped image.
 - `filename`: Original image filename
 - `project`: Project name
 
-### 5. Window (`window`) - NEW!
+### 5. Polygon Region (`polygon_region`) - NEW!
+Exports each text region as a separate image **preserving the original polygon shape** from Transkribus annotations.
+
+**Features:**
+- Uses polygon masking to preserve exact region boundaries
+- White background for areas outside the polygon
+- Includes original coordinate information
+
+**Fields:**
+- `image`: Cropped region image (polygon-masked)
+- `text`: Region text content
+- `region_type`: Type of region (e.g., "paragraph")
+- `region_id`: Unique region identifier
+- `reading_order`: Reading order of the region
+- `filename`: Original image filename
+- `project`: Project name
+- `coords`: Original polygon coordinates as string
+
+### 6. Polygon Line (`polygon_line`) - NEW!
+Exports each text line as a separate image **preserving the original polygon shape** from Transkribus annotations.
+
+**Features:**
+- Uses polygon masking to preserve exact line boundaries
+- White background for areas outside the polygon
+- Includes baseline information when available
+
+**Fields:**
+- `image`: Cropped line image (polygon-masked)
+- `text`: Line text content
+- `line_id`: Unique line identifier
+- `region_id`: Parent region identifier
+- `reading_order`: Reading order within the region
+- `filename`: Original image filename
+- `project`: Project name
+- `coords`: Original polygon coordinates as string
+- `baseline`: Baseline coordinates as string (if available)
+
+### 7. Window (`window`)
 Exports sliding windows of multiple text lines, perfect for data augmentation and multi-line text recognition training.
 
 **Configuration:**
@@ -111,6 +148,10 @@ transkribus-hf path/to/your/transkribus.zip --repo-id username/dataset-name
 
 # Specify export mode
 transkribus-hf path/to/your/transkribus.zip --repo-id username/dataset-name --mode region
+
+# Use polygon-based modes to preserve original shapes
+transkribus-hf path/to/your/transkribus.zip --repo-id username/dataset-name --mode polygon_region
+transkribus-hf path/to/your/transkribus.zip --repo-id username/dataset-name --mode polygon_line
 
 # Window mode with 3 lines per window, 1 line overlap
 transkribus-hf path/to/your/transkribus.zip --repo-id username/dataset-name --mode window --window-size 3 --overlap 1
@@ -151,7 +192,11 @@ region_dataset = converter.convert(export_mode='region')
 line_dataset = converter.convert(export_mode='line')
 xml_dataset = converter.convert(export_mode='raw_xml')
 
-# NEW: Window mode with different configurations
+# NEW: Polygon modes that preserve original shapes
+polygon_region_dataset = converter.convert(export_mode='polygon_region')
+polygon_line_dataset = converter.convert(export_mode='polygon_line')
+
+# Window mode with different configurations
 window_2_dataset = converter.convert(export_mode='window', window_size=2, overlap=0)
 window_3_overlap_dataset = converter.convert(export_mode='window', window_size=3, overlap=1)
 window_4_dataset = converter.convert(export_mode='window', window_size=4, overlap=2)
