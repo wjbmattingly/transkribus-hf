@@ -22,7 +22,7 @@ def main():
     
     parser.add_argument(
         "--mode",
-        choices=['raw_xml', 'text', 'region', 'line', 'window'],
+        choices=['raw_xml', 'text', 'region', 'line', 'window', 'polygon_region', 'polygon_line'],
         default='text',
         help="Export mode (default: text)"
     )

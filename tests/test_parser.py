@@ -109,7 +109,47 @@ Test line 2</Unicode>
         self.assertFalse(self.parser._is_macos_metadata_file("project/page/file.xml"))
         self.assertFalse(self.parser._is_macos_metadata_file("project/page/valid.xml"))
         self.assertFalse(self.parser._is_macos_metadata_file("normal_file.xml"))
+    
+    def test_polygon_exporters_exist(self):
+        """Test that polygon exporters are available."""
+        from transkribus_hf.exporters import PolygonRegionExporter, PolygonLineExporter
+        from transkribus_hf.converter import TranskribusConverter
+        
+        # Test that polygon exporters are in the converter's export modes
+        converter = TranskribusConverter("dummy_path.zip")
+        self.assertIn('polygon_region', converter.EXPORT_MODES)
+        self.assertIn('polygon_line', converter.EXPORT_MODES)
+        
+        # Test that the classes exist and are properly mapped
+        self.assertEqual(converter.EXPORT_MODES['polygon_region'], PolygonRegionExporter)
+        self.assertEqual(converter.EXPORT_MODES['polygon_line'], PolygonLineExporter)
+
+
+class TestPolygonExporters(unittest.TestCase):
+    """Test cases for polygon-based exporters."""
+    
+    def setUp(self):
+        """Set up test fixtures."""
+        from transkribus_hf.exporters import PolygonRegionExporter, PolygonLineExporter
+        self.polygon_region_exporter = PolygonRegionExporter("dummy_path.zip")
+        self.polygon_line_exporter = PolygonLineExporter("dummy_path.zip")
+    
+    def test_polygon_region_exporter_inheritance(self):
+        """Test that PolygonRegionExporter inherits from BaseExporter."""
+        from transkribus_hf.exporters import BaseExporter
+        self.assertIsInstance(self.polygon_region_exporter, BaseExporter)
+    
+    def test_polygon_line_exporter_inheritance(self):
+        """Test that PolygonLineExporter inherits from BaseExporter."""
+        from transkribus_hf.exporters import BaseExporter
+        self.assertIsInstance(self.polygon_line_exporter, BaseExporter)
+    
+    def test_polygon_crop_method_exists(self):
+        """Test that polygon cropping method exists in the base exporter."""
+        # Both exporters should have access to the polygon cropping method
+        self.assertTrue(hasattr(self.polygon_region_exporter, '_crop_region_polygon'))
+        self.assertTrue(hasattr(self.polygon_line_exporter, '_crop_region_polygon'))
 
 
 if __name__ == '__main__':
-    unittest.main() 
+    unittest.main()
